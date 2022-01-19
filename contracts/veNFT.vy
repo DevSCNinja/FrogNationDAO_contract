@@ -412,20 +412,19 @@ def create_lock(_tokenId: uint256, _unlock_time: uint256):
 
 @external
 @nonreentrant('lock')
-def increase_amount(_value: uint256):
+def increase_amount(_tokenId: uint256):
     """
-    @notice Deposit `_value` additional tokens for `msg.sender`
+    @notice Deposit `_tokenId` additional tokens for `msg.sender`
             without modifying the unlock time
-    @param _value Amount of tokens to deposit and add to the lock
+    @param _tokenId Amount of tokens to deposit and add to the lock
     """
     self.assert_not_contract(msg.sender)
     _locked: LockedBalance = self.locked[msg.sender]
 
-    assert _value > 0  # dev: need non-zero value
     assert _locked.amount > 0, "No existing lock found"
     assert _locked.end > block.timestamp, "Cannot add to expired lock. Withdraw"
 
-    self._deposit_for(msg.sender, _value, 0, _locked, INCREASE_LOCK_AMOUNT)
+    self._deposit_for(msg.sender, _tokenId, 0, _locked, INCREASE_LOCK_AMOUNT)
 
 
 @external
