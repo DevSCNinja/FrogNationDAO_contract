@@ -20,19 +20,15 @@ struct Point:
 
 struct LockedBalance:
     amount: int128
+    locked_nfts: uint256[10]
     end: uint256
 
 
-interface ERC20:
-    def decimals() -> uint256: view
-    def name() -> String[64]: view
-    def symbol() -> String[32]: view
-    def transfer(to: address, amount: uint256) -> bool: nonpayable
-    def transferFrom(spender: address, to: address, amount: uint256) -> bool: nonpayable
-
 interface ERC721:
     def transferFrom(spender: address, to: address, tokenId: uint256) -> bool: nonpayable
+    def tokenOfOwnerByIndex(owner: address, index: uint256) -> uint256: view
     def ownerOf(tokenId: uint256) -> address: view
+    def balanceOf(owner: address) -> uint256: view
 
 
 # Interface for checking whether address belongs to a whitelisted
@@ -75,6 +71,7 @@ event Supply:
 WEEK: constant(uint256) = 7 * 86400  # all future times are rounded by week
 MAXTIME: constant(uint256) = 2 * 365 * 86400  # 2 years
 MULTIPLIER: constant(uint256) = 10 ** 18
+MAXVE: constant(uint256) = 10
 
 token: public(address)
 supply: public(uint256)
@@ -120,10 +117,6 @@ def __init__(token_addr: address, _name: String[64], _symbol: String[32], _versi
     self.point_history[0].ts = block.timestamp
     self.controller = msg.sender
     self.transfersEnabled = True
-
-    _decimals: uint256 = ERC20(token_addr).decimals()
-    assert _decimals <= 255
-    self.decimals = _decimals
 
     self.name = _name
     self.symbol = _symbol
@@ -339,7 +332,7 @@ def _checkpoint(addr: address, old_locked: LockedBalance, new_locked: LockedBala
 
 
 @internal
-def _deposit_for(_addr: address, _value: uint256, unlock_time: uint256, locked_balance: LockedBalance, type: int128):
+def _deposit_for(_addr: address, _tokenId: uint256, unlock_time: uint256, locked_balance: LockedBalance, type: int128):
     """
     @notice Deposit and lock tokens for a user
     @param _addr User's wallet address
@@ -350,10 +343,10 @@ def _deposit_for(_addr: address, _value: uint256, unlock_time: uint256, locked_b
     _locked: LockedBalance = locked_balance
     supply_before: uint256 = self.supply
 
-    self.supply = supply_before + _value
+    self.supply = supply_before + 1
     old_locked: LockedBalance = _locked
     # Adding to existing lock, or if a lock is expired - creating a new one
-    _locked.amount += convert(_value, int128)
+    _locked.amount += 1
     if unlock_time != 0:
         _locked.end = unlock_time
     self.locked[_addr] = _locked
@@ -364,11 +357,10 @@ def _deposit_for(_addr: address, _value: uint256, unlock_time: uint256, locked_b
     # _locked.end > block.timestamp (always)
     self._checkpoint(_addr, old_locked, _locked)
 
-    if _value != 0:
-        assert ERC20(self.token).transferFrom(_addr, self, _value)
+    assert ERC721(self.token).transferFrom(_addr, self, _tokenId)
 
-    log Deposit(_addr, _value, _locked.end, type, block.timestamp)
-    log Supply(supply_before, supply_before + _value)
+    log Deposit(_addr, _tokenId, _locked.end, type, block.timestamp)
+    log Supply(supply_before, supply_before + 1)
 
 
 @external
@@ -479,7 +471,9 @@ def withdraw():
     # Both can have >= 0 amount
     self._checkpoint(msg.sender, old_locked, _locked)
 
-    assert ERC20(self.token).transfer(msg.sender, value)
+    for i in range(MAXVE):
+        token_to_send: uint256 = ERC721(self.token).tokenOfOwnerByIndex(msg.sender, i)
+        assert ERC721(self.token).transferFrom(self, msg.sender, token_to_send)
 
     log Withdraw(msg.sender, value, block.timestamp)
     log Supply(supply_before, supply_before - value)
