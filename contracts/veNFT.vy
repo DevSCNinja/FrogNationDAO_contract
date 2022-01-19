@@ -393,22 +393,21 @@ def deposit_for(_addr: address, _tokenId: uint256):
 
 @external
 @nonreentrant('lock')
-def create_lock(_value: uint256, _unlock_time: uint256):
+def create_lock(_tokenId: uint256, _unlock_time: uint256):
     """
-    @notice Deposit `_value` tokens for `msg.sender` and lock until `_unlock_time`
-    @param _value Amount to deposit
+    @notice Deposit `_tokenId` for `msg.sender` and lock until `_unlock_time`
+    @param _tokenId Token to deposit
     @param _unlock_time Epoch time when tokens unlock, rounded down to whole weeks
     """
     self.assert_not_contract(msg.sender)
     unlock_time: uint256 = (_unlock_time / WEEK) * WEEK  # Locktime is rounded down to weeks
     _locked: LockedBalance = self.locked[msg.sender]
 
-    assert _value > 0  # dev: need non-zero value
     assert _locked.amount == 0, "Withdraw old tokens first"
     assert unlock_time > block.timestamp + 2 * WEEK, "Voting lock can be 2 weeks min"
     assert unlock_time <= block.timestamp + MAXTIME, "Voting lock can be 2 years max"
 
-    self._deposit_for(msg.sender, _value, unlock_time, _locked, CREATE_LOCK_TYPE)
+    self._deposit_for(msg.sender, _tokenId, unlock_time, _locked, CREATE_LOCK_TYPE)
 
 
 @external
