@@ -1,7 +1,7 @@
 # @version 0.2.7
 """
 @title Fee Distribution
-@author Dunno
+@author Author
 @license MIT
 """
 
@@ -49,25 +49,23 @@ struct Point:
     blk: uint256  # block
 
 
-WEEK: constant(uint256) = 7 * 86400
-TOKEN_CHECKPOINT_DEADLINE: constant(uint256) = 86400
+DAY: constant(uint256) = 86400
+N_COINS: constant(uint256) = 7
 
 start_time: public(uint256)
 time_cursor: public(uint256)
 time_cursor_of: public(HashMap[address, uint256])
 user_epoch_of: public(HashMap[address, uint256])
 
-last_token_time: public(uint256)
-tokens_per_week: public(uint256[1000000000000000])
+last_token_times: public(uint256[N_COINS])
+tokens_per_day: public(HashMap[uint256, uint256[N_COINS]])
 
 voting_escrow: public(address)
-token: public(address)
+tokens: public(address[N_COINS])
 total_received: public(uint256)
-token_last_balance: public(uint256)
+token_last_balances: public(uint256[N_COINS])
 
-fantom_distributor: public(address)
-
-ve_supply: public(uint256[1000000000000000])  # VE total supply at week bounds
+ve_supply: public(uint256[1000000000000000])  # VE total supply at day bounds
 
 admin: public(address)
 future_admin: public(address)
@@ -80,10 +78,9 @@ is_killed: public(bool)
 def __init__(
     _voting_escrow: address,
     _start_time: uint256,
-    _token: address,
+    _token: address[N_COINS],
     _admin: address,
-    _emergency_return: address,
-    _fantom_distributor: address
+    _emergency_return: address
 ):
     """
     @notice Contract constructor
@@ -93,46 +90,48 @@ def __init__(
     @param _admin Admin address
     @param _emergency_return Address to transfer `_token` balance to
                              if this contract is killed
-    @param _fantom_distributor fantom distributor address
     """
-    t: uint256 = _start_time / WEEK * WEEK
+    t: uint256 = _start_time / DAY * DAY
     self.start_time = t
-    self.last_token_time = t
+
     self.time_cursor = t
-    self.token = _token
+
+    for i in range(N_COINS):
+        self.tokens[i] = _token[i]
+        self.last_token_times[i] = t
     self.voting_escrow = _voting_escrow
     self.admin = _admin
     self.emergency_return = _emergency_return
-    self.fantom_distributor = _fantom_distributor
+    self.can_checkpoint_token = True
 
 
 @internal
-def _checkpoint_token():
-    token_balance: uint256 = ERC20(self.token).balanceOf(self)
-    to_distribute: uint256 = token_balance - self.token_last_balance
-    self.token_last_balance = token_balance
+def _checkpoint_token(index: uint256):
+    token_balance: uint256 = ERC20(self.tokens[index]).balanceOf(self)
+    to_distribute: uint256 = token_balance - self.token_last_balances[index]
+    self.token_last_balances[index] = token_balance
 
-    t: uint256 = self.last_token_time
+    t: uint256 = self.last_token_times[index]
     since_last: uint256 = block.timestamp - t
-    self.last_token_time = block.timestamp
-    this_week: uint256 = t / WEEK * WEEK
-    next_week: uint256 = 0
+    self.last_token_times[index] = block.timestamp
+    this_day: uint256 = t / DAY * DAY
+    next_day: uint256 = 0
 
-    for i in range(20):
-        next_week = this_week + WEEK
-        if block.timestamp < next_week:
+    for i in range(140):
+        next_day = this_day + DAY
+        if block.timestamp < next_day:
             if since_last == 0 and block.timestamp == t:
-                self.tokens_per_week[this_week] += to_distribute
+                self.tokens_per_day[this_day][index] += to_distribute
             else:
-                self.tokens_per_week[this_week] += to_distribute * (block.timestamp - t) / since_last
+                self.tokens_per_day[this_day][index] += to_distribute * (block.timestamp - t) / since_last
             break
         else:
-            if since_last == 0 and next_week == t:
-                self.tokens_per_week[this_week] += to_distribute
+            if since_last == 0 and next_day == t:
+                self.tokens_per_day[this_day][index] += to_distribute
             else:
-                self.tokens_per_week[this_week] += to_distribute * (next_week - t) / since_last
-        t = next_week
-        this_week = next_week
+                self.tokens_per_day[this_day][index] += to_distribute * (next_day - t) / since_last
+        t = next_day
+        this_day = next_day
 
     log CheckpointToken(block.timestamp, to_distribute)
 
@@ -141,15 +140,16 @@ def _checkpoint_token():
 def checkpoint_token():
     """
     @notice Update the token checkpoint
-    @dev Calculates the total number of tokens to be distributed in a given week.
+    @dev Calculates the total number of tokens to be distributed in a given day.
          During setup for the initial distribution this function is only callable
          by the contract owner. Beyond initial distro, it can be enabled for anyone
          to call.
     """
     assert (msg.sender == self.admin) or\
-           (self.can_checkpoint_token and (block.timestamp > self.last_token_time + TOKEN_CHECKPOINT_DEADLINE))
-    self._checkpoint_token()
-    FeeDistributor(self.fantom_distributor).checkpoint_token()
+           (self.can_checkpoint_token and (block.timestamp > self.last_token_times[0]))
+
+    for i in range(N_COINS):
+        self._checkpoint_token(i)
 
 
 @internal
@@ -205,10 +205,10 @@ def ve_for_at(_user: address, _timestamp: uint256) -> uint256:
 def _checkpoint_total_supply():
     ve: address = self.voting_escrow
     t: uint256 = self.time_cursor
-    rounded_timestamp: uint256 = block.timestamp / WEEK * WEEK
+    rounded_timestamp: uint256 = block.timestamp / DAY * DAY
     VotingEscrow(ve).checkpoint()
 
-    for i in range(20):
+    for i in range(140):
         if t > rounded_timestamp:
             break
         else:
@@ -220,7 +220,7 @@ def _checkpoint_total_supply():
                 # Then make dt 0
                 dt = convert(t - pt.ts, int128)
             self.ve_supply[t] = convert(max(pt.bias - pt.slope * dt, 0), uint256)
-        t += WEEK
+        t += DAY
 
     self.time_cursor = t
 
@@ -230,27 +230,27 @@ def checkpoint_total_supply():
     """
     @notice Update the xLQDR total supply checkpoint
     @dev The checkpoint is also updated by the first claimant each
-         new epoch week. This function may be called independently
+         new epoch day. This function may be called independently
          of a claim, to reduce claiming gas costs.
     """
     self._checkpoint_total_supply()
 
 
 @internal
-def _claim(addr: address, ve: address, _last_token_time: uint256) -> uint256:
+def _claim(addr: address, ve: address, _last_token_time: uint256) -> uint256[N_COINS]:
     # Minimal user_epoch is 0 (if user had no point)
     user_epoch: uint256 = 0
-    to_distribute: uint256 = 0
+    to_distribute: uint256[N_COINS] = [0, 0, 0, 0, 0, 0, 0]
 
     max_user_epoch: uint256 = VotingEscrow(ve).user_point_epoch(addr)
     _start_time: uint256 = self.start_time
 
     if max_user_epoch == 0:
         # No lock = no fees
-        return 0
+        return to_distribute
 
-    week_cursor: uint256 = self.time_cursor_of[addr]
-    if week_cursor == 0:
+    day_cursor: uint256 = self.time_cursor_of[addr]
+    if day_cursor == 0:
         # Need to do the initial binary search
         user_epoch = self._find_timestamp_user_epoch(ve, addr, _start_time, max_user_epoch)
     else:
@@ -261,22 +261,22 @@ def _claim(addr: address, ve: address, _last_token_time: uint256) -> uint256:
 
     user_point: Point = VotingEscrow(ve).user_point_history(addr, user_epoch)
 
-    if week_cursor == 0:
-        week_cursor = (user_point.ts + WEEK - 1) / WEEK * WEEK
+    if day_cursor == 0:
+        day_cursor = (user_point.ts + DAY - 1) / DAY * DAY
 
-    if week_cursor >= _last_token_time:
-        return 0
+    if day_cursor >= _last_token_time:
+        return to_distribute
 
-    if week_cursor < _start_time:
-        week_cursor = _start_time
+    if day_cursor < _start_time:
+        day_cursor = _start_time
     old_user_point: Point = empty(Point)
 
-    # Iterate over weeks
-    for i in range(50):
-        if week_cursor >= _last_token_time:
+    # Iterate over days
+    for i in range(150):
+        if day_cursor >= _last_token_time:
             break
 
-        if week_cursor >= user_point.ts and user_epoch <= max_user_epoch:
+        if day_cursor >= user_point.ts and user_epoch <= max_user_epoch:
             user_epoch += 1
             old_user_point = user_point
             if user_epoch > max_user_epoch:
@@ -287,27 +287,33 @@ def _claim(addr: address, ve: address, _last_token_time: uint256) -> uint256:
         else:
             # Calc
             # + i * 2 is for rounding errors
-            dt: int128 = convert(week_cursor - old_user_point.ts, int128)
+            dt: int128 = convert(day_cursor - old_user_point.ts, int128)
             balance_of: uint256 = convert(max(old_user_point.bias - dt * old_user_point.slope, 0), uint256)
             if balance_of == 0 and user_epoch > max_user_epoch:
                 break
             if balance_of > 0:
-                to_distribute += balance_of * self.tokens_per_week[week_cursor] / self.ve_supply[week_cursor]
+                for j in range(N_COINS):
+                    to_distribute[j] += balance_of * self.tokens_per_day[day_cursor][j] / self.ve_supply[day_cursor]
 
-            week_cursor += WEEK
+            day_cursor += DAY
 
     user_epoch = min(max_user_epoch, user_epoch - 1)
     self.user_epoch_of[addr] = user_epoch
-    self.time_cursor_of[addr] = week_cursor
+    self.time_cursor_of[addr] = day_cursor
 
-    log Claimed(addr, to_distribute, user_epoch, max_user_epoch)
+    for i in range(N_COINS):
+        if to_distribute[i] != 0:
+            token: address = self.tokens[i]
+            assert ERC20(token).transfer(addr, to_distribute[i])
+            self.token_last_balances[i] -= to_distribute[i]
+        log Claimed(addr, to_distribute[i], user_epoch, max_user_epoch)
 
     return to_distribute
 
 
 @external
 @nonreentrant('lock')
-def claim(_addr: address = msg.sender) -> (uint256, uint256):
+def claim(_addr: address = msg.sender) -> (uint256[N_COINS]):
     """
     @notice Claim fees for `_addr`
     @dev Each call to claim look at a maximum of 50 user xLQDR points.
@@ -323,22 +329,17 @@ def claim(_addr: address = msg.sender) -> (uint256, uint256):
     if block.timestamp >= self.time_cursor:
         self._checkpoint_total_supply()
 
-    last_token_time: uint256 = self.last_token_time
+    last_token_time: uint256 = self.last_token_times[0]
 
-    if self.can_checkpoint_token and (block.timestamp > last_token_time + TOKEN_CHECKPOINT_DEADLINE):
-        self._checkpoint_token()
+    if self.can_checkpoint_token and (block.timestamp > last_token_time):
+        for i in range(N_COINS):
+            self._checkpoint_token(i)
         last_token_time = block.timestamp
 
-    last_token_time = last_token_time / WEEK * WEEK
+    last_token_time = last_token_time / DAY * DAY
 
-    amount: uint256 = self._claim(_addr, self.voting_escrow, last_token_time)
-    if amount != 0:
-        token: address = self.token
-        assert ERC20(token).transfer(_addr, amount)
-        self.token_last_balance -= amount
+    return self._claim(_addr, self.voting_escrow, last_token_time)
 
-    fantom_amount: uint256 = FeeDistributor(self.fantom_distributor).claim(_addr)
-    return amount, fantom_amount
 
 
 @external
@@ -358,30 +359,21 @@ def claim_many(_receivers: address[20]) -> bool:
     if block.timestamp >= self.time_cursor:
         self._checkpoint_total_supply()
 
-    last_token_time: uint256 = self.last_token_time
+    last_token_time: uint256 = self.last_token_times[0]
 
-    if self.can_checkpoint_token and (block.timestamp > last_token_time + TOKEN_CHECKPOINT_DEADLINE):
-        self._checkpoint_token()
+    if self.can_checkpoint_token and (block.timestamp > last_token_time):
+        for i in range(N_COINS):
+            self._checkpoint_token(i)
         last_token_time = block.timestamp
 
-    last_token_time = last_token_time / WEEK * WEEK
+    last_token_time = last_token_time / DAY * DAY
     voting_escrow: address = self.voting_escrow
-    token: address = self.token
-    total: uint256 = 0
 
     for addr in _receivers:
         if addr == ZERO_ADDRESS:
             break
 
-        amount: uint256 = self._claim(addr, voting_escrow, last_token_time)
-        if amount != 0:
-            assert ERC20(token).transfer(addr, amount)
-            total += amount
-
-    if total != 0:
-        self.token_last_balance -= total
-
-    FeeDistributor(self.fantom_distributor).claim_many(_receivers)
+        self._claim(addr, voting_escrow, last_token_time)
 
     return True
 
@@ -393,14 +385,14 @@ def burn(_coin: address) -> bool:
     @param _coin Address of the coin being received (must be LQDR)
     @return bool success
     """
-    assert _coin == self.token
     assert not self.is_killed
 
     amount: uint256 = ERC20(_coin).balanceOf(msg.sender)
     if amount != 0:
         ERC20(_coin).transferFrom(msg.sender, self, amount)
-        if self.can_checkpoint_token and (block.timestamp > self.last_token_time + TOKEN_CHECKPOINT_DEADLINE):
-            self._checkpoint_token()
+        if self.can_checkpoint_token and (block.timestamp > self.last_token_times[0]):
+            for i in range(N_COINS):
+                self._checkpoint_token(i)
 
     return True
 
@@ -436,7 +428,6 @@ def toggle_allow_checkpoint_token():
     assert msg.sender == self.admin
     flag: bool = not self.can_checkpoint_token
     self.can_checkpoint_token = flag
-    FeeDistributor(self.fantom_distributor).toggle_allow_checkpoint_token()
     log ToggleAllowCheckpointToken(flag)
 
 
@@ -451,8 +442,9 @@ def kill_me():
 
     self.is_killed = True
 
-    token: address = self.token
-    assert ERC20(token).transfer(self.emergency_return, ERC20(token).balanceOf(self))
+    for i in range(N_COINS):
+        token: address = self.tokens[i]
+        assert ERC20(token).transfer(self.emergency_return, ERC20(token).balanceOf(self))
 
 
 @external
@@ -464,7 +456,6 @@ def recover_balance(_coin: address) -> bool:
     @return bool success
     """
     assert msg.sender == self.admin
-    assert _coin != self.token
 
     amount: uint256 = ERC20(_coin).balanceOf(self)
     response: Bytes[32] = raw_call(
@@ -478,6 +469,21 @@ def recover_balance(_coin: address) -> bool:
     )
     if len(response) != 0:
         assert convert(response, bool)
+
+    return True
+
+
+@external
+def set_emergency_return(_addr: address) -> bool:
+    """
+    @notice Set emergency return address
+    @dev Set emergency return address.
+    @param _addr New emergency address
+    @return bool success
+    """
+    assert msg.sender == self.admin
+
+    self.emergency_return = _addr
 
     return True
 
