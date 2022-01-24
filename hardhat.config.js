@@ -10,13 +10,13 @@ require("hardhat-gas-reporter");
 module.exports = {
   defaultNetwork: "hardhat",
   networks: {
-    hardhat: {
+    /* hardhat: {
       chainId: 250,
       forking: {
         url: "https://rpcapi.fantom.network/",
         blockNumber: 9687032        , // <-- edit here
       }
-    }
+    } */
   },
   solidity: {
     compilers: [
