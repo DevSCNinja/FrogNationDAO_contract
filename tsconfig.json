@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "ESNext",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "outDir": "dist",
+    "paths": {
+      "@/*": [
+        "src/*",
+        "test/*",
+      ]
+    }
+  },
+  "include": [
+    "./src",
+    "./test",
+    "./tasks",
+    "./deploy"
+  ],
+  "files": [
+    "./hardhat.config.ts"
+  ]
+}
