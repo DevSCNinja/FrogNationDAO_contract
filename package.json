@@ -1,31 +1,47 @@
 {
+  "private": true,
   "name": "alpha-vault",
   "version": "1.0.0",
-  "description": "",
-  "main": "hardhat.config.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.0.2",
-    "@nomiclabs/hardhat-etherscan": "^2.1.1",
-    "@nomiclabs/hardhat-vyper": "^2.0.1",
-    "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@openzeppelin/test-helpers": "^0.5.10",
-    "chai": "^4.3.4",
-    "ethereum-waffle": "^3.3.0",
-    "ethers": "^5.1.3",
-    "hardhat": "^2.2.0",
-    "hardhat-gas-reporter": "^1.0.4"
+    "dev": "hardhat watch compile",
+    "clean": "hardhat clean",
+    "compile": "hardhat compile",
+    "build": "hardhat clean && hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "test:gas": "REPORT_GAS=true hardhat test",
+    "test:watch": "hardhat watch test",
+    "node": "hardhat node"
   },
   "dependencies": {
-    "@nomiclabs/hardhat-truffle5": "^2.0.0",
-    "@nomiclabs/hardhat-web3": "^2.0.0",
-    "@openzeppelin/contracts": "^3.4.0",
-    "@openzeppelin/contracts-ethereum-package": "^3.0.0",
-    "@openzeppelin/contracts-upgradeable": "^3.4.0"
+    "@openzeppelin/contracts": "4.4.2"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "2.0.4",
+    "@nomiclabs/hardhat-etherscan": "3.0.0",
+    "@nomiclabs/hardhat-truffle5": "2.0.3",
+    "@nomiclabs/hardhat-vyper": "3.0.0",
+    "@nomiclabs/hardhat-waffle": "2.0.2",
+    "@nomiclabs/hardhat-web3": "2.0.0",
+    "@openzeppelin/test-helpers": "0.5.15",
+    "@typechain/ethers-v5": "9.0.0",
+    "@typechain/hardhat": "4.0.0",
+    "@types/chai": "4.3.0",
+    "@types/mocha": "9.1.0",
+    "@types/node": "17.0.10",
+    "chai": "4.3.4",
+    "dotenv": "14.2.0",
+    "ethereum-waffle": "3.4.0",
+    "ethers": "5.5.3",
+    "hardhat": "2.8.3",
+    "hardhat-deploy": "0.9.27",
+    "hardhat-deploy-ethers": "0.3.0-beta.13",
+    "hardhat-gas-reporter": "1.0.7",
+    "hardhat-watcher": "2.1.1",
+    "mocha": "9.1.4",
+    "ts-node": "10.4.0",
+    "tsconfig-paths": "3.12.0",
+    "typechain": "7.0.0",
+    "typescript": "4.5.5"
   }
 }
