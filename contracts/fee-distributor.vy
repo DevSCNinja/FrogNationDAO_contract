@@ -50,7 +50,7 @@ struct Point:
 
 
 DAY: constant(uint256) = 86400
-N_COINS: constant(uint256) = 7
+N_COINS: constant(uint256) = 9
 
 start_time: public(uint256)
 time_cursor: public(uint256)
@@ -240,7 +240,7 @@ def checkpoint_total_supply():
 def _claim(addr: address, ve: address, _last_token_time: uint256) -> uint256[N_COINS]:
     # Minimal user_epoch is 0 (if user had no point)
     user_epoch: uint256 = 0
-    to_distribute: uint256[N_COINS] = [0, 0, 0, 0, 0, 0, 0]
+    to_distribute: uint256[N_COINS] = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     max_user_epoch: uint256 = VotingEscrow(ve).user_point_epoch(addr)
     _start_time: uint256 = self.start_time
