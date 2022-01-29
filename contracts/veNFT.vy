@@ -25,7 +25,7 @@ struct LockedBalance:
 
 
 interface ERC721:
-    def transferFrom(spender: address, to: address, tokenId: uint256) -> bool: nonpayable
+    def transferFrom(spender: address, to: address, tokenId: uint256): nonpayable
     def tokenOfOwnerByIndex(owner: address, index: uint256) -> uint256: view
     def ownerOf(tokenId: uint256) -> address: view
     def balanceOf(owner: address) -> uint256: view
@@ -357,7 +357,7 @@ def _deposit_for(_addr: address, _tokenId: uint256, unlock_time: uint256, locked
     # _locked.end > block.timestamp (always)
     self._checkpoint(_addr, old_locked, _locked)
 
-    assert ERC721(self.token).transferFrom(_addr, self, _tokenId)
+    ERC721(self.token).transferFrom(_addr, self, _tokenId) # problem <---
 
     log Deposit(_addr, _tokenId, _locked.end, type, block.timestamp)
     log Supply(supply_before, supply_before + 1)
@@ -383,7 +383,7 @@ def deposit_for(_addr: address, _tokenId: uint256):
     """
     _locked: LockedBalance = self.locked[_addr]
 
-    assert ERC721(self.token).transferFrom(_addr, self, _tokenId)
+    ERC721(self.token).transferFrom(_addr, self, _tokenId)
     assert _locked.amount > 0, "No existing lock found"
     assert _locked.end > block.timestamp, "Cannot add to expired lock. Withdraw"
 
@@ -471,7 +471,7 @@ def withdraw():
 
     for i in range(MAXVE):
         token_to_send: uint256 = ERC721(self.token).tokenOfOwnerByIndex(msg.sender, i)
-        assert ERC721(self.token).transferFrom(self, msg.sender, token_to_send)
+        ERC721(self.token).transferFrom(self, msg.sender, token_to_send)
 
     log Withdraw(msg.sender, value, block.timestamp)
     log Supply(supply_before, supply_before - value)
