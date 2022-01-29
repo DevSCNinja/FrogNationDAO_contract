@@ -357,7 +357,7 @@ def _deposit_for(_addr: address, _tokenId: uint256, unlock_time: uint256, locked
     # _locked.end > block.timestamp (always)
     self._checkpoint(_addr, old_locked, _locked)
 
-    ERC721(self.token).transferFrom(_addr, self, _tokenId) # problem <---
+    ERC721(self.token).transferFrom(_addr, self, _tokenId)
 
     log Deposit(_addr, _tokenId, _locked.end, type, block.timestamp)
     log Supply(supply_before, supply_before + 1)
@@ -387,7 +387,6 @@ def deposit_for(_addr: address, _tokenId: uint256):
     assert _locked.amount > 0, "No existing lock found"
     assert _locked.end > block.timestamp, "Cannot add to expired lock. Withdraw"
 
-    # _tokenId needs to change to _tokenId in _deposit_for implementation
     self._deposit_for(_addr, _tokenId, 0, self.locked[_addr], DEPOSIT_FOR_TYPE)
 
 
