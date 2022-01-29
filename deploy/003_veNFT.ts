@@ -11,7 +11,7 @@ export default async function deploy(hre: HardhatRuntimeEnvironment) {
 
   const _name = "veNFT";
   const _symbol = "vNFT";
-  const _version = 1;
+  const _version = "veNFT_1.0.0";
 
   const veNFT = await deployments.deploy("veNFT", {
     from: deployer,
