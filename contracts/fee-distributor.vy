@@ -15,13 +15,6 @@ interface VotingEscrow:
     def point_history(loc: uint256) -> Point: view
     def checkpoint(): nonpayable
 
-interface FeeDistributor:
-    def checkpoint_token(): nonpayable
-    def claim(_addr: address) -> uint256: nonpayable
-    def claim_many(_receivers: address[20]) -> bool: nonpayable
-    def toggle_allow_checkpoint_token(): nonpayable
-
-
 event CommitAdmin:
     admin: address
 
@@ -339,7 +332,6 @@ def claim(_addr: address = msg.sender) -> (uint256[N_COINS]):
     last_token_time = last_token_time / DAY * DAY
 
     return self._claim(_addr, self.voting_escrow, last_token_time)
-
 
 
 @external
